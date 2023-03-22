@@ -1,0 +1,65 @@
+//*****************************************************************************************************************************************************************************//
+//                                Mosaico 2020 do estado de Rondônia (Versão 1.0)                                                                                              //
+//*****************************************************************************************************************************************************************************//
+//                                                                                                                                                                             //  
+// * Proposta do script:    - Gerar automaticamente um mosaico do estado de Rondônia a partir da coleção de Reflectância de Superficie do Sentinel-2                           //
+// *                                                                                                                                                                           //
+// * Info:                  - Script passivel de ser atualizado e gerar mosaico para diferentes anos;                                                                          //
+// *                        - A Coleção COPERNICUS/S2_SR possui dados pretéritos a partir de março de 2017;                                                                    //
+// *                        - Este script pode ser ajustado para uma outra Área de Interesse (ex. Terra Indigena ou Unidade de Conservação) basta trocar a "var table";        //
+// *                                                                                                                                                                           //
+// *                                                                                                                                                                           //
+// *                                                                                                                                                                           //
+// * Produzido por:         Divisão de Sensoriamento Remoto - DIVSER                                                                                                           //
+// * Orgão:                 CENSIPAM                                                                                                                                           //
+// * Responsável Técnico:   Henrique Bernini (Analista Geo)                                                                                                                    //
+// * Email:                 henrique.bernini@sipam.gov.br                                                                                                                      //
+// *                                                                                                                                                                           //
+//                                                                                                                                                                             //
+//*****************************************************************************************************************************************************************************//
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// 1 - Primeiro passo é criar uma variavel para chamar a coleção de imagens Sentinel-2 corrigida atmosféricamente COPERNICUS/S2_SR//                                           //  
+// 1.1 - Ainda nesta variavel é possivel adicionar os filtros de cobertura de nuvens, data e Área de Interesse                                                                 //
+// 1.2 - Para fazer o filtro da Área de Interese é prociso inserir a área do estado a partir da função ASSETS. Não esquecer de chamar os metadados ".SHP, .PRJ, .SHX, .DBF"    //
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+var collection = ee.ImageCollection('COPERNICUS/S2_SR') // chama a coleção de imagens
+  .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 5)) // filtra no metadado da coleção os pixels com cobertura de nuvens menor que 5%
+  .filterDate('2022-06-01' ,'2022-08-30') //escolhe pixels no período selecionado aqui
+  .filterBounds(table) // Recorta os dados para a Área de Interesse usando o arquivo importado do ASSETS
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// 2 - Gera uma lista das imagens (e seus metadados) filtrados pelo comando 1 na aba "Console", janela à direita.                                                              //
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+print(collection) 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// 3.1 - Este comando encontra o valor mediano de todos os pixels que atendem aos critérios                                                                                    //
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////.                                                                                   //
+var medianpixels = collection.median()
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// 3.2 - Este comando corta o resultado para que se encaixe perfeitamente em sua Area de Interesse e divide para que os valores represente o fator de reflectância entre 0 e 1.//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+var medianpixelsclipped = medianpixels.clip(table).divide(10000)                                                                                                               //
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// 4 - Este comando gera no display a visualização do mosaico em composição colorida.                                                                                          //
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Map.addLayer(medianpixelsclipped, {bands: ['B4', 'B3', 'B2'], min: 0.02, max: 0.1, gamma: 1.5}, 'Mosaico RO (2020)')
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// 5 - Este comando exporta o mosaico para o Google Drive para ser feito o download e usar em ambiente SIG.                                                                    //
+// 5.1 - Exporta a imagem especificando a Area de Interesse e a escala.                                                                                                        //
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Export.image.toDrive({
+  image: medianpixelsclipped.select("B4", "B3", "B2"),
+  description: 'RO_S2_Alta_floresta',
+  scale: 10,
+  maxPixels: 9e10,
+  region: table
+});
